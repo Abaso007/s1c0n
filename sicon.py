@@ -9,9 +9,7 @@ def check_module(module_name, package_name):
     except ImportError:
         print(f"\n\t   [!] Error on import {module_name}")
         user = os.getuid()
-        if user == 0:
-            pass
-        else:
+        if user != 0:
             print(f"{co.r}{co.bo}[!] {module_name} module is missing, run me with sudo i will install it{co.re}")
         os.system(f"pip3 install {package_name}")
 
@@ -38,9 +36,7 @@ def check(tool):
         # checking user privileges
         user = os.getuid()
 
-        if user == 0:
-            pass
-        else:
+        if user != 0:
             print(f"{co.r}{co.bo}[!] {tool} is missing, Please run me with sudo to install {tool}{co.re}")
             exit()
         # installing missing requirements
@@ -66,7 +62,7 @@ def remove_list_files(extension):
 
 
 ## 1.4: preparing everything
-saving_path = getcwd() + "/"
+saving_path = f"{getcwd()}/"
 port_scan = nmap.PortScanner()
 
 
@@ -85,26 +81,30 @@ co.re)
 command_arguments = sys.argv[1:]
 
 if (len(command_arguments) > 0):
-	flag = command_arguments[0].upper()
+    flag = command_arguments[0].upper()
 
-	if flag == "-U" or flag == "--URL":
-		URL_TARGET = command_arguments[1]
+    if flag in ["-U", "--URL"]:
+        URL_TARGET = command_arguments[1]
 
-	else:
-		break_and_help()
+    else:
+        break_and_help()
 
 else:
-	break_and_help()
+    break_and_help()
 
 
-os.mkdir("report_"+URL_TARGET)
+os.mkdir(f"report_{URL_TARGET}")
 ## 2.0: Starting recon phase:
 print(co.bo + co.g + "\n\t[*] Starting recon on %s:" % URL_TARGET + co.re)
 
 ## 2.1: Detect WAF using wafw00f:
 # convert to domain using httprobe
-get_host   = subprocess.check_output(("echo %s | httprobe -prefer-https" % URL_TARGET), shell=True, text=True)
-detect_waf = subprocess.check_output(("wafw00f %s > /dev/null" % get_host), shell=True, text=True)
+get_host = subprocess.check_output(
+    f"echo {URL_TARGET} | httprobe -prefer-https", shell=True, text=True
+)
+detect_waf = subprocess.check_output(
+    f"wafw00f {get_host} > /dev/null", shell=True, text=True
+)
 
 if ("is behind" in detect_waf):
 	## has some WAF
@@ -122,8 +122,8 @@ else:
 	print(co.bo + co.r  + "\n\t  [!] FAIL TO DETECT WAF" + co.re)
 
 ### 2.2: Scanning ports using nmap
-# run NMAP and filter results using GREP 
-system("nmap %s -o .list_NMAP.txt > /dev/null" % URL_TARGET)
+# run NMAP and filter results using GREP
+system(f"nmap {URL_TARGET} -o .list_NMAP.txt > /dev/null")
 system("cat .list_NMAP.txt | grep open > .list_PORTS.txt")
 
 # open file we just created
@@ -140,10 +140,10 @@ for p in ports_list:
 
 ### 2.3: Getting subdomains
 # this process might take a while, we'll use different scripts for that
-system("subfinder -d %s -o .list_subfinder.txt -silent > /dev/null" % URL_TARGET)
-system("sublist3r -d %s -o .list_sublist3r.txt > /dev/null" % URL_TARGET)
-system("assetfinder %s > .list_assetfinder.txt" % URL_TARGET)
-system("amass enum -d %s -o .list_amass.txt -silent" % URL_TARGET)
+system(f"subfinder -d {URL_TARGET} -o .list_subfinder.txt -silent > /dev/null")
+system(f"sublist3r -d {URL_TARGET} -o .list_sublist3r.txt > /dev/null")
+system(f"assetfinder {URL_TARGET} > .list_assetfinder.txt")
+system(f"amass enum -d {URL_TARGET} -o .list_amass.txt -silent")
 
 # concat every output into one file
 system("cat .list*.txt > .list_subdomains.txt")
@@ -160,11 +160,11 @@ cpanel_subdomain = [subdomain_list for subdomain_list in subdomain_list if subdo
 not_cpanel_subdomain = [subdomain_list for subdomain_list in subdomain_list if not subdomain_list.startswith(("cpanel.", "webdisk.", "webmail.", "cpcontacts.", "whm.", "autoconfig.", "mail.", "cpcalendars.", "autodiscover."))]
 
 # Save cpanel subdomains to file
-with open(os.path.join("report_"+URL_TARGET, "cpanel_subdomain.txt"), "w") as f:
+with open(os.path.join(f"report_{URL_TARGET}", "cpanel_subdomain.txt"), "w") as f:
     f.write("\n".join(cpanel_subdomain))
 
 # Save other subdomains to file, creating the file if it does not exist
-with open(os.path.join("report_"+URL_TARGET, "subdomain.txt"), "w") as f:
+with open(os.path.join(f"report_{URL_TARGET}", "subdomain.txt"), "w") as f:
     if not_cpanel_subdomain:
         f.write("\n".join(not_cpanel_subdomain))
     else:
@@ -176,19 +176,19 @@ print(co.bo + co.g + "\n\t  [+] SUBDOMAINS DETECTED: %s" % len(subdomain_list) +
 
 for s in subdomain_list:
 
-	# perform quick port scan using nmap
-	quick_scan = port_scan.scan(hosts=s, arguments="-F")
-	host = list(quick_scan["scan"].keys())
-	
-	if (len(host) > 0):
-		# tcp ports were found
-		tcp_open = str(list(quick_scan["scan"][host[0]]["tcp"].keys()))
-		print(co.re+ co.g + "\t    -> " + co.re+ co.bo + s +
-										" | " +  co.g + tcp_open + co.re)
-	else:
-		# port scan failed
-		print(co.re+ co.g + "\t    -> " + co.re+ co.bo + s +
-										" | " +  co.r + "HOST OFFLINE" + co.re)
+    # perform quick port scan using nmap
+    quick_scan = port_scan.scan(hosts=s, arguments="-F")
+    host = list(quick_scan["scan"].keys())
+
+    if host:
+        # tcp ports were found
+        tcp_open = str(list(quick_scan["scan"][host[0]]["tcp"].keys()))
+        print(co.re+ co.g + "\t    -> " + co.re+ co.bo + s +
+        								" | " +  co.g + tcp_open + co.re)
+    else:
+        # port scan failed
+        print(co.re+ co.g + "\t    -> " + co.re+ co.bo + s +
+        								" | " +  co.r + "HOST OFFLINE" + co.re)
 
 ### checking cms 2.4:
 wp_regex = re.compile(r'wp-')
@@ -198,17 +198,17 @@ print(co.bo + co.g + "\n\t  [+] CMS DETECTEION: " + co.re)
 
 for url in not_cpanel_subdomain:
     try:
-        response = requests.get('http://'+url, timeout=5)
+        response = requests.get(f'http://{url}', timeout=5)
         if response.status_code == 200:
             text = response.text
             if wp_regex.search(text):
                 print(co.re + co.g + "\t    -> " + co.re+ co.bo + url +" | Wordpress" + co.re)
-                with open(os.path.join("report_"+URL_TARGET, "wp.txt"), "a") as f:
-                    f.write("http://"+ url + "\n")
+                with open(os.path.join(f"report_{URL_TARGET}", "wp.txt"), "a") as f:
+                    f.write(f"http://{url}" + "\n")
             elif joomla_regex.search(text):
                 print(co.re + co.g + "\t    -> " + co.re+ co.bo + url +" | Joomla" + co.re)
-                with open(os.path.join("report_"+URL_TARGET, "joomla.txt"), "a") as f:
-                    f.write("http://"+ url + "\n")
+                with open(os.path.join(f"report_{URL_TARGET}", "joomla.txt"), "a") as f:
+                    f.write(f"http://{url}" + "\n")
             else:
                 print(co.re + co.g + "\t    -> " + co.re+ co.bo + url +" | " +  co.r + "FAIL DETECT CMS" + co.re)
         else:
@@ -217,11 +217,13 @@ for url in not_cpanel_subdomain:
         print(co.re + co.g + "\t    -> " + co.re+ co.bo + url +" | " +  co.r + "COULD NOT BE REACHED " + co.re)
 
 ### 2.5: Bruteforcing json_directory:
-system("dirsearch -u {} -o {} --format=json > /dev/null".format(URL_TARGET, (saving_path + ".list_json_directory.json")))
+system(
+    f"dirsearch -u {URL_TARGET} -o {saving_path}.list_json_directory.json --format=json > /dev/null"
+)
 
 with open(".list_json_directory.json", encoding="utf-8") as file:
 	json_directory = json.load(file)
-	
+
 remove_list_files("json")
 
 host      = str( list(json_directory["results"][0].keys())[0] )
@@ -229,12 +231,12 @@ directory = json_directory["results"][0][host]
 
 dir_list = []
 for d in directory:
-	path = d["path"]
-	status = d["status"]
+    path = d["path"]
+    status = d["status"]
 
-	# drop other codes
-	if (status == 200 or status == 403):
-		dir_list.append([status, path])
+    	# drop other codes
+    if status in [200, 403]:
+        dir_list.append([status, path])
 
 sorted_directories = sorted(dir_list)
 
@@ -248,7 +250,7 @@ for d in sorted_directories:
 		# g alert
 		print(co.g + "\t    -> " + co.re+ co.g
 				+ str(d[0]) + co.re+ " | " +  co.bo + format_host + d[1] + co.re)
-	
+
 	elif (d[0] == 403):
 		print(co.g + "\t    -> " + co.re+ co.ye 
 				+ str(d[0]) + co.re+ " | " +  co.bo + format_host + d[1] + co.re)
